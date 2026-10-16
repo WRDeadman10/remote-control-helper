@@ -180,6 +180,7 @@ bool LoopbackServer::HandleHttpRequest(SOCKET clientSocket, const std::string& r
             "Access-Control-Allow-Origin: *\r\n"
             "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
             "Access-Control-Allow-Headers: *\r\n"
+            "Access-Control-Allow-Private-Network: true\r\n"
             "Connection: close\r\n\r\n";
         send(clientSocket, response.c_str(), static_cast<int>(response.length()), 0);
         return false;
@@ -202,6 +203,7 @@ bool LoopbackServer::HandleHttpRequest(SOCKET clientSocket, const std::string& r
         std::string response =
             "HTTP/1.1 200 OK\r\n"
             "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Private-Network: true\r\n"
             "Content-Type: application/json\r\n"
             "Content-Length: " + std::to_string(body.length()) + "\r\n"
             "Connection: close\r\n\r\n" + body;
@@ -221,6 +223,7 @@ bool LoopbackServer::HandleHttpRequest(SOCKET clientSocket, const std::string& r
         std::string response =
             "HTTP/1.1 200 OK\r\n"
             "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Private-Network: true\r\n"
             "Content-Type: application/json\r\n"
             "Content-Length: " + std::to_string(respBody.length()) + "\r\n"
             "Connection: close\r\n\r\n" + respBody;
