@@ -33,6 +33,8 @@ add_executable(remote-control-helper ${SOURCES} ${HEADERS})
 target_link_libraries(remote-control-helper PRIVATE
     ws2_32
     user32
+    advapi32
+    crypt32
 )
 
 # Test executable for unit testing input mapping and validation

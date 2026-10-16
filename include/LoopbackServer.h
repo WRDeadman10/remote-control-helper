@@ -35,6 +35,10 @@ private:
     void HandleClient(SOCKET clientSocket);
     void ProcessMessage(SOCKET clientSocket, const std::string& line, bool& isAuthenticated);
 
+    bool HandleHttpRequest(SOCKET clientSocket, const std::string& request, bool& isWebSocket);
+    bool HandleWebSocketHandshake(SOCKET clientSocket, const std::string& request);
+    void HandleWebSocketFrames(SOCKET clientSocket, std::string& buffer, bool& isAuthenticated);
+
     static std::string ExtractStringField(const std::string& json, const std::string& key);
     static float ExtractFloatField(const std::string& json, const std::string& key, float defaultVal = 0.0f);
     static int ExtractIntField(const std::string& json, const std::string& key, int defaultVal = 0);

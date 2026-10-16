@@ -45,11 +45,42 @@ static std::string GenerateRandomToken(size_t length = 32) {
     return token;
 }
 
+static bool RegisterDeeplinkProtocol() {
+    wchar_t szExePath[MAX_PATH] = {0};
+    GetModuleFileNameW(NULL, szExePath, MAX_PATH);
+
+    HKEY hKey = NULL;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Classes\\lancam-control", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        RegSetValueExW(hKey, NULL, 0, REG_SZ, (const BYTE*)L"URL:LAN Camera Remote Control Protocol", sizeof(L"URL:LAN Camera Remote Control Protocol"));
+        RegSetValueExW(hKey, L"URL Protocol", 0, REG_SZ, (const BYTE*)L"", sizeof(L""));
+        RegCloseKey(hKey);
+    }
+    std::wstring cmdKeyPath = L"Software\\Classes\\lancam-control\\shell\\open\\command";
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, cmdKeyPath.c_str(), 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        std::wstring cmdVal = L"\"" + std::wstring(szExePath) + L"\" \"%1\"";
+        RegSetValueExW(hKey, NULL, 0, REG_SZ, (const BYTE*)cmdVal.c_str(), (DWORD)(cmdVal.length() + 1) * sizeof(wchar_t));
+        RegCloseKey(hKey);
+        return true;
+    }
+    return false;
+}
+
 int main(int argc, char* argv[]) {
+    // Single instance mutex: prevent duplicate background instances
+    HANDLE hMutex = CreateMutexW(NULL, TRUE, L"Local\\LanCameraRemoteControlHelper_SingleInstance");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        std::cout << "[MAIN] Helper is already running in background. Exiting duplicate instance." << std::endl;
+        CloseHandle(hMutex);
+        return 0;
+    }
+
+    // Ensure lancam-control:// protocol is registered for current user
+    RegisterDeeplinkProtocol();
+
     int port = 8765;
     std::string token;
     std::string tokenFilePath;
-    bool requireAuth = true;
+    bool requireAuth = false; // Default to loopback-secured for local browser / deeplink usage
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i) {
@@ -58,9 +89,21 @@ int main(int argc, char* argv[]) {
             port = std::stoi(argv[++i]);
         } else if (arg == "--token" && i + 1 < argc) {
             token = argv[++i];
+            requireAuth = true;
         } else if (arg == "--token-file" && i + 1 < argc) {
             tokenFilePath = argv[++i];
+            requireAuth = true;
+        } else if (arg == "--require-auth") {
+            requireAuth = true;
         } else if (arg == "--no-auth") {
+            requireAuth = false;
+        } else if (arg == "--register") {
+            RegisterDeeplinkProtocol();
+            std::cout << "[MAIN] Registered lancam-control:// protocol handler successfully." << std::endl;
+            CloseHandle(hMutex);
+            return 0;
+        } else if (arg.rfind("lancam-control://", 0) == 0) {
+            std::cout << "[MAIN] Launched via deeplink: " << arg << std::endl;
             requireAuth = false;
         } else if (arg == "--help" || arg == "-h") {
             std::cout << "Remote Desktop Control Helper (Windows Native)" << std::endl;
@@ -70,6 +113,8 @@ int main(int argc, char* argv[]) {
             std::cout << "  --token <token>      Authentication token for IPC clients" << std::endl;
             std::cout << "  --token-file <path>  Write authentication token to file" << std::endl;
             std::cout << "  --no-auth            Allow unauthenticated local connections" << std::endl;
+            std::cout << "  --register           Register lancam-control:// protocol handler and exit" << std::endl;
+            CloseHandle(hMutex);
             return 0;
         }
     }
