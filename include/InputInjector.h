@@ -15,6 +15,7 @@ public:
     void SetTargetDisplayBounds(int left, int top, int width, int height);
 
     bool InjectMouseMove(float normX, float normY);
+    bool InjectMouseMoveRelative(int dx, int dy);
     bool InjectMouseButton(const std::string& button, bool isDown);
     bool InjectMouseClick(const std::string& button);
     bool InjectMouseWheel(int deltaY, int deltaX);
@@ -22,6 +23,7 @@ public:
     bool InjectKeyDown(const std::string& domCode);
     bool InjectKeyUp(const std::string& domCode);
     bool InjectKeyTap(const std::string& domCode);
+    bool InjectText(const std::wstring& text);
 
 private:
     SafetyManager& m_safetyManager;

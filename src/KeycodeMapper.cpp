@@ -69,6 +69,7 @@ KeyMapping KeycodeMapper::MapDomCodeToVirtualKey(const std::string& domCode) {
         {"CapsLock",   { VK_CAPITAL,false, true }},
         {"NumLock",    { VK_NUMLOCK,true,  true }},
         {"ScrollLock", { VK_SCROLL, false, true }},
+        {"PrintScreen",{ VK_SNAPSHOT, false, true }},
         {"Pause",      { VK_PAUSE,  true,  true }},
 
         // Extended Navigation Cluster

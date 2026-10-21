@@ -435,6 +435,10 @@ void LoopbackServer::ProcessMessage(SOCKET clientSocket, const std::string& line
         float x = ExtractFloatField(line, "x", 0.0f);
         float y = ExtractFloatField(line, "y", 0.0f);
         success = m_injector.InjectMouseMove(x, y);
+    } else if (type == "mouse_move_relative") {
+        int dx = ExtractIntField(line, "dx", 0);
+        int dy = ExtractIntField(line, "dy", 0);
+        success = m_injector.InjectMouseMoveRelative(dx, dy);
     } else if (type == "mouse_down") {
         std::string button = ExtractStringField(line, "button");
         success = m_injector.InjectMouseButton(button, true);
@@ -457,6 +461,21 @@ void LoopbackServer::ProcessMessage(SOCKET clientSocket, const std::string& line
     } else if (type == "key_tap") {
         std::string code = ExtractStringField(line, "code");
         success = m_injector.InjectKeyTap(code);
+    } else if (type == "text") {
+        std::string utf8Text = ExtractStringField(line, "text");
+        if (utf8Text.empty()) {
+            success = true;
+        } else {
+            int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8Text.c_str(), -1, NULL, 0);
+            if (wlen > 1) {
+                std::vector<wchar_t> wstr(wlen);
+                MultiByteToWideChar(CP_UTF8, 0, utf8Text.c_str(), -1, wstr.data(), wlen);
+                std::wstring textStr(wstr.data());
+                success = m_injector.InjectText(textStr);
+            } else {
+                success = true;
+            }
+        }
     } else {
         const char* resp = "{\"status\":\"error\",\"error\":\"Unknown command\"}\n";
         send(clientSocket, resp, static_cast<int>(strlen(resp)), 0);

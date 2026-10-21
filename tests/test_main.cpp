@@ -3,6 +3,7 @@
 #include "KeycodeMapper.h"
 #include "InputValidator.h"
 #include "SafetyManager.h"
+#include "InputInjector.h"
 
 int main() {
     std::cout << "[TEST] Running native remote-control-helper unit tests..." << std::endl;
@@ -53,6 +54,11 @@ int main() {
     assert(mapControlRight.virtualKey == VK_RCONTROL);
     assert(mapControlRight.isExtended == true);
 
+    auto mapPrintScreen = RemoteControl::KeycodeMapper::MapDomCodeToVirtualKey("PrintScreen");
+    assert(mapPrintScreen.isValid == true);
+    assert(mapPrintScreen.virtualKey == VK_SNAPSHOT);
+    assert(mapPrintScreen.isExtended == false);
+
     auto mapInvalid = RemoteControl::KeycodeMapper::MapDomCodeToVirtualKey("NonExistentKey");
     assert(mapInvalid.isValid == false);
     std::cout << "  ✔ Keycode mapping passed." << std::endl;
@@ -84,6 +90,18 @@ int main() {
         assert(safety.IsEmergencyStopped() == false);
     }
     std::cout << "  ✔ SafetyManager held tracking & emergency stop passed." << std::endl;
+
+    // Test 6: InputInjector Text & Safety
+    {
+        RemoteControl::SafetyManager safety;
+        RemoteControl::InputInjector injector(safety);
+        assert(injector.InjectText(L"") == true);
+        safety.TriggerEmergencyStop();
+        assert(injector.InjectText(L"Test") == false);
+        assert(injector.InjectMouseMoveRelative(10, 10) == false);
+        safety.ResetEmergencyStop();
+    }
+    std::cout << "  ✔ InputInjector Unicode text and relative move safety passed." << std::endl;
 
     std::cout << "[TEST] All native tests passed successfully!" << std::endl;
     return 0;

@@ -109,6 +109,14 @@ bool InputInjector::InjectMouseMove(float normX, float normY) {
     return SendMouseInput(flags, normDx, normDy, 0);
 }
 
+bool InputInjector::InjectMouseMoveRelative(int dx, int dy) {
+    if (m_safetyManager.IsEmergencyStopped()) {
+        return false;
+    }
+    DWORD flags = MOUSEEVENTF_MOVE;
+    return SendMouseInput(flags, static_cast<LONG>(dx), static_cast<LONG>(dy), 0);
+}
+
 bool InputInjector::InjectMouseButton(const std::string& button, bool isDown) {
     DWORD flags = 0;
     int buttonCode = 0;
@@ -186,6 +194,41 @@ bool InputInjector::InjectKeyTap(const std::string& domCode) {
     }
     Sleep(5);
     return InjectKeyUp(domCode);
+}
+
+bool InputInjector::InjectText(const std::wstring& text) {
+    if (m_safetyManager.IsEmergencyStopped()) {
+        return false;
+    }
+    if (text.empty()) {
+        return true;
+    }
+
+    bool allOk = true;
+    for (wchar_t ch : text) {
+        INPUT inputs[2] = {};
+        // Key down (Unicode character)
+        inputs[0].type = INPUT_KEYBOARD;
+        inputs[0].ki.wVk = 0;
+        inputs[0].ki.wScan = ch;
+        inputs[0].ki.dwFlags = KEYEVENTF_UNICODE;
+        inputs[0].ki.time = 0;
+        inputs[0].ki.dwExtraInfo = 0;
+
+        // Key up (Unicode character)
+        inputs[1].type = INPUT_KEYBOARD;
+        inputs[1].ki.wVk = 0;
+        inputs[1].ki.wScan = ch;
+        inputs[1].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+        inputs[1].ki.time = 0;
+        inputs[1].ki.dwExtraInfo = 0;
+
+        UINT sent = SendInput(2, inputs, sizeof(INPUT));
+        if (sent != 2) {
+            allOk = false;
+        }
+    }
+    return allOk;
 }
 
 } // namespace RemoteControl
