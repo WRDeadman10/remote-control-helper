@@ -173,13 +173,35 @@ void LoopbackServer::HandleClient(SOCKET clientSocket) {
 }
 
 bool LoopbackServer::HandleHttpRequest(SOCKET clientSocket, const std::string& request, bool& isWebSocket) {
+    // Determine allowed CORS Origin: allow localhost / 127.0.0.1 / [::1] or reflect request origin
+    std::string allowedOrigin = "http://127.0.0.1";
+    size_t originPos = request.find("Origin: ");
+    if (originPos == std::string::npos) {
+        originPos = request.find("origin: ");
+    }
+    if (originPos != std::string::npos) {
+        size_t start = originPos + 8;
+        size_t end = request.find("\r\n", start);
+        if (end != std::string::npos) {
+            std::string reqOrigin = request.substr(start, end - start);
+            if (reqOrigin.rfind("http://localhost", 0) == 0 ||
+                reqOrigin.rfind("https://localhost", 0) == 0 ||
+                reqOrigin.rfind("http://127.0.0.1", 0) == 0 ||
+                reqOrigin.rfind("https://127.0.0.1", 0) == 0 ||
+                reqOrigin.rfind("http://[::1]", 0) == 0 ||
+                !m_requireAuth) {
+                allowedOrigin = reqOrigin;
+            }
+        }
+    }
+
     // 1. CORS Preflight
     if (request.rfind("OPTIONS ", 0) == 0) {
         std::string response =
             "HTTP/1.1 204 No Content\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Origin: " + allowedOrigin + "\r\n"
             "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
-            "Access-Control-Allow-Headers: *\r\n"
+            "Access-Control-Allow-Headers: Content-Type, Authorization, X-Auth-Token\r\n"
             "Access-Control-Allow-Private-Network: true\r\n"
             "Connection: close\r\n\r\n";
         send(clientSocket, response.c_str(), static_cast<int>(response.length()), 0);
@@ -202,7 +224,7 @@ bool LoopbackServer::HandleHttpRequest(SOCKET clientSocket, const std::string& r
                            std::to_string(m_safetyManager.GetHeldKeyCount()) + "}\n";
         std::string response =
             "HTTP/1.1 200 OK\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Origin: " + allowedOrigin + "\r\n"
             "Access-Control-Allow-Private-Network: true\r\n"
             "Content-Type: application/json\r\n"
             "Content-Length: " + std::to_string(body.length()) + "\r\n"
@@ -213,16 +235,74 @@ bool LoopbackServer::HandleHttpRequest(SOCKET clientSocket, const std::string& r
 
     // 4. HTTP POST /input
     if (request.rfind("POST /input", 0) == 0) {
+        bool isAuthenticated = !m_requireAuth;
+
+        // Check Authorization: Bearer <token>
+        if (!isAuthenticated) {
+            size_t authPos = request.find("Authorization: Bearer ");
+            if (authPos == std::string::npos) {
+                authPos = request.find("authorization: bearer ");
+            }
+            if (authPos != std::string::npos) {
+                size_t start = authPos + 22;
+                size_t end = request.find("\r\n", start);
+                if (end != std::string::npos) {
+                    std::string token = request.substr(start, end - start);
+                    if (token == m_authToken) {
+                        isAuthenticated = true;
+                    }
+                }
+            }
+        }
+
+        // Check X-Auth-Token header
+        if (!isAuthenticated) {
+            size_t tokenPos = request.find("X-Auth-Token: ");
+            if (tokenPos == std::string::npos) {
+                tokenPos = request.find("x-auth-token: ");
+            }
+            if (tokenPos != std::string::npos) {
+                size_t start = tokenPos + 14;
+                size_t end = request.find("\r\n", start);
+                if (end != std::string::npos) {
+                    std::string token = request.substr(start, end - start);
+                    if (token == m_authToken) {
+                        isAuthenticated = true;
+                    }
+                }
+            }
+        }
+
         size_t bodyPos = request.find("\r\n\r\n");
-        if (bodyPos != std::string::npos) {
-            std::string body = request.substr(bodyPos + 4);
-            bool auth = true;
-            ProcessMessage(clientSocket, body, auth);
+        std::string body = (bodyPos != std::string::npos) ? request.substr(bodyPos + 4) : "";
+
+        // Check inline token in JSON body
+        if (!isAuthenticated && !body.empty()) {
+            std::string inlineToken = ExtractStringField(body, "token");
+            if (!inlineToken.empty() && inlineToken == m_authToken) {
+                isAuthenticated = true;
+            }
+        }
+
+        if (m_requireAuth && !isAuthenticated) {
+            std::string errBody = "{\"status\":\"error\",\"error\":\"Unauthorized. Valid token required.\"}\n";
+            std::string response =
+                "HTTP/1.1 401 Unauthorized\r\n"
+                "Access-Control-Allow-Origin: " + allowedOrigin + "\r\n"
+                "Content-Type: application/json\r\n"
+                "Content-Length: " + std::to_string(errBody.length()) + "\r\n"
+                "Connection: close\r\n\r\n" + errBody;
+            send(clientSocket, response.c_str(), static_cast<int>(response.length()), 0);
+            return false;
+        }
+
+        if (!body.empty()) {
+            ProcessMessage(clientSocket, body, isAuthenticated);
         }
         std::string respBody = "{\"status\":\"ok\"}\n";
         std::string response =
             "HTTP/1.1 200 OK\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Origin: " + allowedOrigin + "\r\n"
             "Access-Control-Allow-Private-Network: true\r\n"
             "Content-Type: application/json\r\n"
             "Content-Length: " + std::to_string(respBody.length()) + "\r\n"
